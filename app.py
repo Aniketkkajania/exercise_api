@@ -75,4 +75,4 @@ async def root():
     return {"about": "Explore the Exercise Classifier API to identify and learn about various exercises effortlessly", "version":"0.0.1"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5738)
+    uvicorn.run(app, host="127.0.0.2", port=5738)
