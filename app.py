@@ -25,7 +25,6 @@ MUSCLES = {
 EXCLUDED_INDICES = [0,1,2,3,4,5,6,7,8,9,10,17,18,19,20,21,22,31,32]
 
 app = FastAPI()
-
 def process_landmarks(frame): 
     global pose
     return pose.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -33,7 +32,11 @@ def process_landmarks(frame):
 def classify_exercise(results, model):
     landmarks = [landmark for i, landmark in enumerate(results.pose_landmarks.landmark) if i not in EXCLUDED_INDICES]
     inputs = np.array([val for landmark in landmarks for val in (landmark.x, landmark.y, landmark.z, landmark.visibility)]).reshape(1, -1)
-    return np.argmax(model.predict(inputs), axis=1)[0]
+    prediction = model.predict(inputs)
+    predicted_class_index = np.argmax(prediction)
+    predicted_class_label = LABELS[predicted_class_index]
+    predicted_probability = prediction[0, predicted_class_index]
+    return predicted_class_label, predicted_probability*100
 
 def save_pose_skeleton(results, frame):
     if results:
@@ -55,14 +58,13 @@ async def classify_exercise_endpoint(file: UploadFile):
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         results = process_landmarks(frame)
 
-        class_label = classify_exercise(results, model)
-        class_name = LABELS[class_label]
+        class_name, accuracy = classify_exercise(results, model)
         muscles = MUSCLES[class_name]
 
         skeleton_image = save_pose_skeleton(results, frame)
         _, skeleton_image_buffer = cv2.imencode(".png", skeleton_image)
         skeleton_image_base64 = base64.b64encode(skeleton_image_buffer).decode("utf-8")
-        return {"exercise_type": class_name, "muscles_involved": muscles, "skeleton_image": skeleton_image_base64}
+        return {"exercise_type": class_name, "Accuracy": f"{accuracy}%", "muscles_involved": muscles, "skeleton_image": skeleton_image_base64}
     
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error processing the uploaded file")
@@ -73,5 +75,4 @@ async def root():
     return {"about": "Explore the Exercise Classifier API to identify and learn about various exercises effortlessly", "version":"0.0.1"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5738, ssl_keyfile="localhost+2-key.pem", 
-                ssl_certfile="localhost+2.pem")
+    uvicorn.run(app, host="0.0.0.0", port=5738)
